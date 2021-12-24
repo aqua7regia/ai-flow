@@ -20,11 +20,12 @@
 
 import argparse
 from argparse import Action, RawTextHelpFormatter
+from datetime import datetime
 from functools import lru_cache
-
 from typing import Callable, Dict, Iterable, List, NamedTuple, Optional, Union
 
-from notification_service.util.utils import import_string, partition
+from notification_service.util.cli import ColorMode
+from notification_service.util.utils import import_string, partition, parse_date
 
 
 def lazy_load_command(import_path: str) -> Callable:
@@ -118,47 +119,214 @@ ARG_DB_VERSION = Arg(
     default='heads',
 )
 
+ARG_SERVER_DAEMON = Arg(
+    ("-d", "--daemon"),
+    help="Daemonize instead of running in the foreground",
+    action="store_true"
+)
 
 CLICommand = Union[ActionCommand, GroupCommand]
 
-VERSION_COMMAND = ActionCommand("version",
-                                "Shows the version of Notification.",
-                                lazy_load_command("notification_service.cli.commands.version_command.version"),
-                                [],
-                                "Shows the version of Notification.")
+ARG_SERVER_URI = Arg(
+    ("-s", "--server-uri"),
+    help="The uri of notification server",
+)
+
+ARG_NAMESPACE = Arg(
+    ("-n", "--namespace"),
+    help="Namespace of the event. If not set, all namespaces would be handled",
+)
+
+ARG_KEY = Arg(
+    ("key",),
+    help="Key of the event",
+)
+
+ARG_VALUE = Arg(
+    ("value",),
+    help="Value of the event",
+)
+
+ARG_CONTEXT = Arg(
+    ("--context",),
+    help="Context of the event",
+)
+
+ARG_BEGIN_VERSION = Arg(
+    ("--begin-version",),
+    help="Begin version of the event. Defaults to 0",
+    type=int,
+    default=0,
+)
+
+ARG_EVENT_TYPE = Arg(
+    ("--event-type",),
+    help="Type of the event. If not set, all types would be handled",
+)
+
+ARG_BEGIN_TIME = Arg(
+    ("--begin-time",),
+    help="Begin datetime of the event, formatted in ISO 8601",
+    type=parse_date,
+)
+
+ARG_LISTEN_BEGIN_TIME = Arg(
+    ("--begin-time",),
+    help="Begin datetime of the event to listen, formatted in ISO 8601",
+    type=parse_date,
+    default=datetime.now().isoformat()
+)
+
+ARG_SENDER = Arg(
+    ("--sender",),
+    help="Sender of the event",
+)
+
+# config
+ARG_OPTION = Arg(
+    ("option",),
+    help="The option name of the configuration",
+)
+
+ARG_OUTPUT = Arg(
+    ("-o", "--output"),
+    help="Output format. Allowed values: json, yaml, table (default: table)",
+    metavar="(table, json, yaml)",
+    choices=("table", "json", "yaml"),
+    default="table",
+)
+
+ARG_COLOR = Arg(
+    ('--color',),
+    help="Does emit colored config output (default: auto)",
+    choices={ColorMode.ON, ColorMode.OFF, ColorMode.AUTO},
+    default=ColorMode.AUTO,
+)
+
+ARG_TIMEOUT = Arg(
+    ("--timeout",),
+    help="Client timeout in seconds.",
+    default=None,
+    type=int,
+)
+
+EVENT_COMMANDS = (
+    ActionCommand(
+        name='list',
+        help="Lists events",
+        func=lazy_load_command('notification_service.cli.commands.event_command.list_events'),
+        args=(ARG_KEY, ARG_SERVER_URI, ARG_NAMESPACE, ARG_BEGIN_VERSION, ARG_EVENT_TYPE,
+              ARG_BEGIN_TIME, ARG_SENDER, ARG_OUTPUT),
+    ),
+    ActionCommand(
+        name='count',
+        help='Counts events',
+        func=lazy_load_command('notification_service.cli.commands.event_command.count_events'),
+        args=(ARG_KEY, ARG_SERVER_URI, ARG_NAMESPACE, ARG_BEGIN_VERSION, ARG_EVENT_TYPE,
+              ARG_BEGIN_TIME, ARG_SENDER),
+    ),
+    ActionCommand(
+        name='listen',
+        help='Listens events',
+        func=lazy_load_command('notification_service.cli.commands.event_command.listen_events'),
+        args=(ARG_KEY, ARG_SERVER_URI, ARG_NAMESPACE, ARG_BEGIN_VERSION, ARG_EVENT_TYPE,
+              ARG_LISTEN_BEGIN_TIME, ARG_SENDER)
+    ),
+    ActionCommand(
+        name='send',
+        help='Sends an event',
+        func=lazy_load_command('notification_service.cli.commands.event_command.send_event'),
+        args=(ARG_KEY, ARG_VALUE, ARG_SERVER_URI, ARG_NAMESPACE, ARG_EVENT_TYPE, ARG_CONTEXT, ARG_SENDER)
+    )
+)
+
 DB_COMMANDS = (
     ActionCommand(
         name='init',
-        help="Initialize the metadata database",
+        help="Initializes the metadata database",
         func=lazy_load_command('notification_service.cli.commands.db_command.init'),
         args=(),
     ),
     ActionCommand(
         name='reset',
-        help="Burn down and rebuild the metadata database",
+        help="Burns down and rebuild the metadata database",
         func=lazy_load_command('notification_service.cli.commands.db_command.reset'),
         args=(ARG_YES,),
     ),
     ActionCommand(
         name='upgrade',
-        help="Upgrade the metadata database to the version",
+        help="Upgrades the metadata database to the version",
         func=lazy_load_command('notification_service.cli.commands.db_command.upgrade'),
         args=(ARG_DB_VERSION,),
     ),
     ActionCommand(
         name='downgrade',
-        help="Downgrade the metadata database to the version",
+        help="Downgrades the metadata database to the version",
         func=lazy_load_command('notification_service.cli.commands.db_command.downgrade'),
         args=(ARG_DB_VERSION,),
     )
 )
 
+SERVER_COMMANDS = (
+    ActionCommand("start",
+                  "Starts the notification server",
+                  lazy_load_command("notification_service.cli.commands.server_command.server_start"),
+                  [ARG_SERVER_DAEMON],
+                  "Start the notification server"),
+
+    ActionCommand("stop",
+                  "Stops the notification server",
+                  lazy_load_command("notification_service.cli.commands.server_command.server_stop"),
+                  [],
+                  "Stop the notification server")
+)
+
+CONFIG_COMMANDS = (
+    ActionCommand(
+        name='get-value',
+        help='Gets the option value of the configuration.',
+        func=lazy_load_command('notification_service.cli.commands.config_command.config_get_value'),
+        args=(ARG_OPTION,),
+    ),
+    ActionCommand(
+        name='init',
+        help='Initializes the default configuration.',
+        func=lazy_load_command('notification_service.cli.commands.config_command.config_init'),
+        args=(),
+    ),
+    ActionCommand(
+        name='list',
+        help='List all options of the configuration.',
+        func=lazy_load_command('notification_service.cli.commands.config_command.config_list'),
+        args=(ARG_COLOR,),
+    ),
+)
+
 notification_commands: List[CLICommand] = [
-    VERSION_COMMAND,
+    ActionCommand("version",
+                  "Shows the version of Notification",
+                  lazy_load_command("notification_service.cli.commands.version_command.version"),
+                  [],
+                  "Shows the version of Notification"),
+    GroupCommand(
+        name='server',
+        help='Notification server operations',
+        subcommands=SERVER_COMMANDS
+    ),
+    GroupCommand(
+        name='event',
+        help='Manage events',
+        subcommands=EVENT_COMMANDS,
+    ),
     GroupCommand(
         name='db',
         help="Database operations",
         subcommands=DB_COMMANDS,
+    ),
+    GroupCommand(
+        name="config",
+        help='Manage configuration',
+        subcommands=CONFIG_COMMANDS
     ),
 ]
 ALL_COMMANDS_DICT: Dict[str, CLICommand] = {sp.name: sp for sp in notification_commands}

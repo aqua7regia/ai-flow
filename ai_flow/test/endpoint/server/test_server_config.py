@@ -16,8 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-import unittest
 import os
+import unittest
+
 from ai_flow.endpoint.server.server_config import AIFlowServerConfig, DBType
 
 
@@ -30,10 +31,15 @@ class TestConfiguration(unittest.TestCase):
 
     def test_load_master_configuration(self):
         config = AIFlowServerConfig()
-        config.load_from_file(os.path.dirname(__file__) + '/master_config.yaml')
+        config.load_from_file(os.path.dirname(__file__) + '/aiflow_server.yaml')
         self.assertEqual('sql_lite', config.get_db_type())
         self.assertEqual('/tmp/repo', config.get_scheduler_service_config()['repository'])
         self.assertEqual(True, config.start_scheduler_service())
+
+    def test_get_wait_for_server_started_timeout(self):
+        config = AIFlowServerConfig()
+        config.load_from_file(os.path.dirname(__file__) + '/aiflow_server.yaml')
+        self.assertEqual(5.0, config.get_wait_for_server_started_timeout())
 
 
 if __name__ == '__main__':

@@ -19,28 +19,20 @@
 ##
 set -e
 
-BIN=$(dirname "${BASH_SOURCE-$0}")
-BIN=$(cd "$BIN"; pwd)
-. "${BIN}"/init-aiflow-env.sh
+echo "[WARNING] This script will be deprecated, please use 'aiflow' command-line interface."
 
-if [ -e "${AIFLOW_PID_DIR}"/aiflow_server.pid ]; then
-  echo "AiFlow server is running, stopping first"
-  "${BIN}"/stop-aiflow.sh
+export AIFLOW_HOME=${AIFLOW_HOME:-~/aiflow}
+
+if [ -e "${AIFLOW_HOME}"/aiflow_server.pid ] || [ -e "${AIFLOW_HOME}"/aiflow_web_server.pid ]; then
+  echo "AIFlow is running, stopping first"
+  aiflow server stop
+  aiflow webserver stop
 fi
 
-echo "Starting AIFlow Server"
-LOG_FILE_NAME=aiflow-server-$(date "+%Y%m%d-%H%M%S").log
-"${BIN}"/start_aiflow.py > "${AIFLOW_LOG_DIR}"/"${LOG_FILE_NAME}" 2>&1 &
-echo $! > "${AIFLOW_PID_DIR}"/aiflow_server.pid
-echo "AIFlow Server started"
+aiflow config init
 
-echo "Starting AIFlow Web"
-WEB_LOG_FILE_NAME=aiflow-webserver-$(date "+%Y%m%d-%H%M%S").log
-"${BIN}"/start_aiflow_web.py > "${AIFLOW_LOG_DIR}"/"${WEB_LOG_FILE_NAME}" 2>&1 &
-echo $! > "${AIFLOW_PID_DIR}"/aiflow_web_server.pid
-echo "AIFlow Web started"
+aiflow db init
 
-echo "AIFlow Server log: ${AIFLOW_LOG_DIR}/${LOG_FILE_NAME}"
-echo "AIFlow Server pid: $(cat "${AIFLOW_PID_DIR}"/aiflow_server.pid)"
-echo "AIFlow Web log: ${AIFLOW_LOG_DIR}/${WEB_LOG_FILE_NAME}"
-echo "AIFlow Web pid: $(cat "${AIFLOW_PID_DIR}"/aiflow_web_server.pid)"
+aiflow server start -d
+
+aiflow webserver start -d

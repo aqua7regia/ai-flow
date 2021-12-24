@@ -1,9 +1,9 @@
-# CLI Tool
+# CLI
 
 ```{toctree}
 :maxdepth: 2
 
 aiflow
-notification_service
+notification
 
 ```

@@ -16,13 +16,9 @@
 ## specific language governing permissions and limitations
 ## under the License.
 ##
-server_port: 50051
-db_uri: sqlite:///aiflow.db
-db_type: sql_lite
-start_scheduler_service: True
-scheduler_service:
-  repository: /tmp/repo
-  scheduler:
-    scheduler_class: ai_flow.test.endpoint.server.test_server_runner.MockScheduler
-    scheduler_config:
-      notification_server_uri: localhost:9999
+project_name: test_project
+server_uri: localhost:50051
+notification_server_uri: localhost:50052
+blob:
+  blob_manager_class: ai_flow.test.api.mock_plugins.MockBlobManger
+a: a

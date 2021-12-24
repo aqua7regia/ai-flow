@@ -18,11 +18,11 @@
 #
 import logging
 import time
-from typing import Optional, Text, List, Union
 
 import sqlalchemy.exc
 import sqlalchemy.orm
 from sqlalchemy import and_, cast, Integer, asc, desc
+from typing import Optional, Text, List, Union
 
 from ai_flow.common.status import Status
 from ai_flow.endpoint.server.exception import AIFlowException
@@ -108,7 +108,6 @@ class SqlAlchemyStore(AbstractStore):
         self.db_uri = db_uri
         self.db_type = extract_db_engine_from_uri(db_uri)
         self.db_engine = create_sqlalchemy_engine(db_uri)
-        base.metadata.create_all(self.db_engine)
         # Verify that database sql model tables exist.
         SqlAlchemyStore._verify_registry_tables_exist(self.db_engine)
         base.metadata.bind = self.db_engine
@@ -862,8 +861,27 @@ class SqlAlchemyStore(AbstractStore):
                  if exists, Otherwise, returns None if the workflow snapshot does not exist.
         """
         with self.ManagedSessionMaker() as session:
+            workflow_snapshot = session.query(SqlWorkflowSnapshot) \
+                .filter(SqlWorkflowSnapshot.uuid == workflow_snapshot_id) \
+                .scalar()
+            return None if workflow_snapshot is None \
+                else ResultToMeta.result_to_workflow_snapshot_meta(workflow_snapshot)
+
+    def get_workflow_snapshot_by_signature(self,
+                                           workflow_id: int,
+                                           signature: Text) -> Optional[WorkflowSnapshotMeta]:
+        """
+        Get a specific workflow snapshot in metadata store by workflow_id and signature.
+
+        :param workflow_id: the workflow id
+        :param signature: the signature of workflow snapshot
+        :return: A single :py:class:`ai_flow.meta.workflow_snapshot_meta.WorkflowSnapshotMeta` object
+                 if exists, Otherwise, returns None if the workflow snapshot does not exist.
+        """
+        with self.ManagedSessionMaker() as session:
             workflow_snapshot = session.query(SqlWorkflowSnapshot)\
-                .filter(SqlWorkflowSnapshot.uuid == workflow_snapshot_id)\
+                .filter(SqlWorkflowSnapshot.workflow_id == workflow_id,
+                        SqlWorkflowSnapshot.signature == signature)\
                 .scalar()
             return None if workflow_snapshot is None \
                 else ResultToMeta.result_to_workflow_snapshot_meta(workflow_snapshot)
@@ -1412,8 +1430,8 @@ class SqlAlchemyStore(AbstractStore):
         if len(register_models) == 0:
             return None
         else:
-            _logger.info("Get registered model name: %s, versions: %s.", register_models[0].model_name,
-                         register_models[0].model_version)
+            _logger.debug("Get registered model name: %s, versions: %s.", register_models[0].model_name,
+                          register_models[0].model_version)
             return register_models[0]
 
     def create_registered_model(self, model_name, model_desc=None):
@@ -1560,8 +1578,8 @@ class SqlAlchemyStore(AbstractStore):
         if len(model_versions) == 0:
             return None
         else:
-            _logger.info("Get registered model version: %s of model name: %s.", model_versions[0],
-                         model_versions[0].model_name)
+            _logger.debug("Get registered model version: %s of model name: %s.", model_versions[0],
+                          model_versions[0].model_name)
             return model_versions[0]
 
     @classmethod
@@ -1635,7 +1653,7 @@ class SqlAlchemyStore(AbstractStore):
                 except sqlalchemy.exc.IntegrityError:
                     logging.info(model_version)
                     more_retries = self.CREATE_RETRY_TIMES - attempt - 1
-                    _logger.info(
+                    _logger.warning(
                         'Create model version (model_version=%s) error (model_name=%s). Retrying %s more time%s.',
                         model_version, model_name,
                         str(more_retries), 's' if more_retries > 1 else '')

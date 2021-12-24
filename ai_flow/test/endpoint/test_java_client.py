@@ -24,7 +24,7 @@ import unittest
 from ai_flow.endpoint.server.server import AIFlowServer
 from ai_flow.store.db.base_model import base
 from ai_flow.test.store.test_sqlalchemy_store import _get_store
-from notification_service.event_storage import DbEventStorage
+from ai_flow.util import sqlalchemy_db
 from ai_flow.test.util.notification_service_utils import start_notification_server, stop_notification_server
 
 _SQLITE_DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aiflow.db')
@@ -53,8 +53,7 @@ class JavaAIFlowClientTest(unittest.TestCase):
         _get_store(_SQLITE_DB_URI)
 
     def tearDown(self) -> None:
-        store = _get_store(_SQLITE_DB_URI)
-        base.metadata.drop_all(store.db_engine)
+        sqlalchemy_db.clear_db(_SQLITE_DB_URI, base.metadata)
         self.ns_server.storage.clean_up()
 
     @staticmethod
@@ -193,12 +192,6 @@ class JavaAIFlowClientTest(unittest.TestCase):
 
     def test_delete_model_version(self):
         self._run_test_with_java_client('testDeleteModelVersion')
-
-    def test_update_and_list_notification(self):
-        self._run_test_with_java_client('testUpdateAndListNotification')
-
-    def test_listen_notification(self):
-        self._run_test_with_java_client('testListenNotification')
 
     def test_dataset_metric_meta(self):
         self._run_test_with_java_client('testDatasetMetricMeta')

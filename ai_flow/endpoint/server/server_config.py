@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+import os
 from ai_flow.common.configuration import AIFlowConfiguration
 from enum import Enum
 from typing import Text
@@ -125,3 +126,12 @@ class AIFlowServerConfig(AIFlowConfiguration):
 
     def get_web_server_config(self):
         return self.get('web_server')
+
+    def set_wait_for_server_started_timeout(self, wait_for_server_started_timeout):
+        self['wait_for_server_started_timeout'] = wait_for_server_started_timeout
+
+    def get_wait_for_server_started_timeout(self):
+        if 'wait_for_server_started_timeout' in self:
+            return self.get('wait_for_server_started_timeout')
+        else:
+            return 5.0

@@ -35,6 +35,7 @@ from ai_flow.meta.workflow_snapshot_meta import WorkflowSnapshotMeta
 from ai_flow.model_center.entity.model_version_detail import ModelVersionDetail
 from ai_flow.model_center.entity.model_version_stage import ModelVersionStage
 from ai_flow.model_center.entity.registered_model_detail import RegisteredModelDetail
+from ai_flow.client.notification_client import get_notification_client
 
 
 def get_dataset_by_id(dataset_id) -> Optional[DatasetMeta]:
@@ -261,18 +262,25 @@ def register_workflow_snapshot(project_name: Text, workflow_name: Text, uri: Tex
                                                            signature=signature)
 
 
-def get_workflow_snapshot(workflow_snapshot_id: int):
+def get_workflow_snapshot(workflow_snapshot_id: int) -> Optional[WorkflowSnapshotMeta]:
     return get_ai_flow_client().get_workflow_snapshot(workflow_snapshot_id=workflow_snapshot_id)
 
 
-def list_workflow_snapshots(project_name: Text, workflow_name: Text, page_size: int, offset: int):
+def get_workflow_snapshot_by_signature(project_name: Text, workflow_name: Text, signature: Text) -> Optional[WorkflowSnapshotMeta]:
+    return get_ai_flow_client().get_workflow_snapshot_by_signature(project_name=project_name,
+                                                                   workflow_name=workflow_name,
+                                                                   signature=signature)
+
+
+def list_workflow_snapshots(project_name: Text, workflow_name: Text,
+                            page_size: int, offset: int) -> Optional[List[WorkflowSnapshotMeta]]:
     return get_ai_flow_client().list_workflow_snapshots(project_name=project_name,
                                                         workflow_name=workflow_name,
                                                         page_size=page_size,
                                                         offset=offset)
 
 
-def delete_workflow_snapshot(workflow_snapshot_id: int):
+def delete_workflow_snapshot(workflow_snapshot_id: int) -> Status:
     return get_ai_flow_client().delete_workflow_snapshot(workflow_snapshot_id=workflow_snapshot_id)
 
 

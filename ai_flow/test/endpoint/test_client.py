@@ -24,9 +24,6 @@ from unittest import TestCase
 
 import cloudpickle
 
-from ai_flow.project.project_config import ProjectConfig
-from notification_service.base_notification import EventWatcher
-
 from ai_flow.common.properties import Properties
 from ai_flow.common.status import Status
 from ai_flow.meta.dataset_meta import DatasetMeta, DataType, Schema
@@ -40,6 +37,8 @@ from ai_flow.endpoint.server.server import AIFlowServer
 from ai_flow.store.db.base_model import base
 from ai_flow.test.store.test_sqlalchemy_store import _get_store
 from ai_flow.test.util.notification_service_utils import start_notification_server, stop_notification_server, _NS_URI
+from ai_flow.test.util.server_util import wait_for_server_started
+from ai_flow.util import sqlalchemy_db
 
 _SQLITE_DB_FILE = 'aiflow.db'
 _SQLITE_DB_URI = '%s%s' % ('sqlite:///', _SQLITE_DB_FILE)
@@ -773,111 +772,6 @@ class AIFlowClientTestCases(object):
         self.assertEqual(response.model_type, model_type)
         self.assertEqual(response.version_desc, version_desc)
 
-    def test_update_and_list_notification(self):
-        key = 'test_publish_event_key'
-        value1 = 'test_publish_event_value1'
-        response = client.publish_event(key=key, value=value1)
-        self.assertIsNotNone(response)
-        self.assertEqual(response.key, key)
-        self.assertEqual(response.value, value1)
-        self.assertTrue(response.version > 0)
-        notifications = client.list_events(key=key)
-        self.assertEqual(len(notifications), 1)
-        self.assertEqual(notifications[0].key, key)
-        self.assertEqual(notifications[0].value, value1)
-        self.assertEqual(notifications[0].version, response.version)
-        notifications = client.list_events(key=key, version=0)
-        self.assertEqual(len(notifications), 1)
-        self.assertEqual(notifications[0].key, key)
-        self.assertEqual(notifications[0].value, value1)
-
-        value2 = 'test_publish_event_value2'
-        old_response = response
-        response = client.publish_event(key=key, value=value2)
-        self.assertIsNotNone(response)
-        self.assertEqual(response.version, old_response.version + 1)
-        notifications = client.list_events(key=key)
-        self.assertEqual(len(notifications), 2)
-        self.assertEqual(notifications[1].key, key)
-        self.assertEqual(notifications[1].value, value2)
-        self.assertEqual(notifications[1].version, old_response.version + 1)
-        notifications = client.list_events(key=key, version=old_response.version)
-        self.assertEqual(len(notifications), 1)
-        self.assertEqual(notifications[0].key, key)
-        self.assertEqual(notifications[0].value, value2)
-
-        old_response = response
-        response = client.publish_event(key=key, value=value2)
-        self.assertIsNotNone(response)
-        self.assertEqual(response.version, old_response.version + 1)
-        notifications = client.list_events(key=key)
-        self.assertEqual(len(notifications), 3)
-        self.assertEqual(notifications[2].key, key)
-        self.assertEqual(notifications[2].value, value2)
-        self.assertEqual(notifications[2].version, old_response.version + 1)
-        notifications = client.list_events(key=key, version=old_response.version)
-        self.assertEqual(len(notifications), 1)
-        self.assertEqual(notifications[0].key, key)
-        self.assertEqual(notifications[0].value, value2)
-
-    def test_listen_notification(self):
-        class TestWatcher(EventWatcher):
-
-            def __init__(self, event_type, test_case: TestCase):
-                super(TestWatcher, self).__init__()
-                self.event_type = event_type
-                self.test_case = test_case
-
-            def process(self, notifications):
-                self.test_case.assertNotEqual(len(notifications), 0)
-                for notification in notifications:
-                    print(notification)
-
-        event_type1 = 'test_listen_notification1'
-        key1 = 'test_listen_notification_key1'
-        client.start_listen_event(key=key1,
-                                  watcher=TestWatcher(event_type1, self))
-        client.start_listen_event(key=key1,
-                                  watcher=TestWatcher(event_type1, self))
-        client1.start_listen_event(key=key1,
-                                   watcher=TestWatcher(event_type1, self))
-        client2.start_listen_event(key=key1,
-                                   watcher=TestWatcher(event_type1, self))
-
-        value1 = 'test_listen_notification_value1'
-        client.publish_event(key=key1, value=value1)
-        value2 = 'test_listen_notification_value2'
-        client.publish_event(key=key1, value=value2)
-
-        time.sleep(10)
-        value3 = 'test_listen_notification_value3'
-        client.publish_event(key=key1, value=value3)
-
-        time.sleep(1)
-        client.stop_listen_event(key1)
-        client1.stop_listen_event(key1)
-        client2.stop_listen_event(key1)
-
-        key2 = 'test_listen_notification_key2'
-        client.publish_event(key=key2, value=value1)
-        client.publish_event(key=key2, value=value2)
-
-        event_type2 = 'test_listen_notification2'
-        client.start_listen_event(key=key2,
-                                  watcher=TestWatcher(event_type2, self))
-        client1.start_listen_event(key=key2,
-                                   watcher=TestWatcher(event_type2, self))
-        client2.start_listen_event(key=key2,
-                                   watcher=TestWatcher(event_type2, self))
-
-        time.sleep(10)
-        client.publish_event(key=key2, value=value3)
-
-        time.sleep(1)
-        client.stop_listen_event(key2)
-        client1.stop_listen_event(key2)
-        client2.stop_listen_event(key2)
-
     # def test_submit_workflow(self):
     #
     #     def create_job(index) -> BaseJob:
@@ -1069,6 +963,10 @@ class AIFlowClientTestCases(object):
         self.assertEqual(workflow_snapshot.uuid, 1)
         snapshot = client.get_workflow_snapshot(workflow_snapshot.uuid)
         self.assertEqual('/path/to/snapshot', snapshot.uri)
+        snapshot_by_signature = client.get_workflow_snapshot_by_signature(project_name=project.name,
+                                                                          workflow_name=workflow.name,
+                                                                          signature='md5sum')
+        self.assertEqual('/path/to/snapshot', snapshot_by_signature.uri)
 
         workflow_snapshot2 = client.register_workflow_snapshot(project_name=project.name,
                                                                workflow_name=workflow.name,
@@ -1096,6 +994,28 @@ class AIFlowClientTestCases(object):
     def test_get_non_existent_workflow_snapshot(self):
         response = client.get_workflow_snapshot(workflow_snapshot_id=10)
         self.assertIsNone(response)
+
+        project = client.register_project(name='project', uri='www.code.com')
+        workflow = client.register_workflow(name='workflow',
+                                            project_id=project.uuid,
+                                            properties=Properties({'a': 'b'}))
+        client.register_workflow_snapshot(project_name=project.name,
+                                          workflow_name=workflow.name,
+                                          uri='/path/to/snapshot',
+                                          signature='md5sum')
+        response_by_signature = client.get_workflow_snapshot_by_signature(project_name=project.name,
+                                                                          workflow_name=workflow.name,
+                                                                          signature='md5sum')
+        self.assertIsNotNone(response_by_signature)
+        response_by_signature = client.get_workflow_snapshot_by_signature(project_name=project.name,
+                                                                          workflow_name='whatever',
+                                                                          signature='md5sum')
+        self.assertIsNone(response_by_signature)
+        response_by_signature = client.get_workflow_snapshot_by_signature(project_name=project.name,
+                                                                          workflow_name=workflow.name,
+                                                                          signature='illegal_md5sum')
+        self.assertIsNone(response_by_signature)
+
         self.assertRaises(Exception, client.list_workflow_snapshots, project_name='',
                           workflow_name='', page_size=5, offset=0)
 
@@ -1128,15 +1048,13 @@ class TestAIFlowClientSqlite(AIFlowClientTestCases, unittest.TestCase):
             os.remove(_SQLITE_DB_FILE)
         cls.server = AIFlowServer(store_uri=_SQLITE_DB_URI, port=_PORT, start_scheduler_service=False)
         cls.server.run()
-        client = AIFlowClient(server_uri='localhost:' + _PORT, notification_server_uri=_NS_URI)
-        client1 = AIFlowClient(server_uri='localhost:' + _PORT, notification_server_uri=_NS_URI)
-        client2 = AIFlowClient(server_uri='localhost:' + _PORT, notification_server_uri=_NS_URI)
+        wait_for_server_started('localhost:{}'.format(_PORT))
+        client = AIFlowClient(server_uri='localhost:' + _PORT)
+        client1 = AIFlowClient(server_uri='localhost:' + _PORT)
+        client2 = AIFlowClient(server_uri='localhost:' + _PORT)
 
     @classmethod
     def tearDownClass(cls) -> None:
-        client.stop_listen_event()
-        client1.stop_listen_event()
-        client2.stop_listen_event()
         cls.server.stop()
         os.remove(_SQLITE_DB_FILE)
         stop_notification_server(cls.ns_server)
@@ -1145,8 +1063,7 @@ class TestAIFlowClientSqlite(AIFlowClientTestCases, unittest.TestCase):
         _get_store(_SQLITE_DB_URI)
 
     def tearDown(self) -> None:
-        store = _get_store(_SQLITE_DB_URI)
-        base.metadata.drop_all(store.db_engine)
+        sqlalchemy_db.clear_db(_SQLITE_DB_URI, base.metadata)
 
 
 @unittest.skip("Skip until HA is re-implemented.")
@@ -1166,22 +1083,15 @@ class TestAIFlowClientSqliteWithSingleHighAvailableServer(
         cls.server = AIFlowServer(store_uri=_SQLITE_DB_URI, port=_PORT, enabled_ha=True, start_scheduler_service=False,
                                   ha_server_uri='localhost:' + _PORT)
         cls.server.run()
-        config = ProjectConfig()
-        config.set_server_uri('localhost:50051')
-        config.set_project_name('test_project')
-        config.set_enable_ha(True)
-        config.set_notification_server_uri(_NS_URI)
-        client = AIFlowClient(server_uri='localhost:' + _PORT, project_config=config)
-        client1 = AIFlowClient(server_uri='localhost:' + _PORT, project_config=config)
-        client2 = AIFlowClient(server_uri='localhost:' + _PORT, project_config=config)
+        wait_for_server_started('localhost:{}'.format(_PORT))
+        client = AIFlowClient(server_uri='localhost:' + _PORT, enable_ha=True)
+        client1 = AIFlowClient(server_uri='localhost:' + _PORT, enable_ha=True)
+        client2 = AIFlowClient(server_uri='localhost:' + _PORT, enable_ha=True)
 
     @classmethod
     def tearDownClass(cls) -> None:
-        client.stop_listen_event()
         client.disable_high_availability()
-        client1.stop_listen_event()
         client1.disable_high_availability()
-        client2.stop_listen_event()
         client2.disable_high_availability()
         cls.server.stop()
         os.remove(_SQLITE_DB_FILE)
@@ -1191,8 +1101,7 @@ class TestAIFlowClientSqliteWithSingleHighAvailableServer(
         _get_store(_SQLITE_DB_URI)
 
     def tearDown(self) -> None:
-        store = _get_store(_SQLITE_DB_URI)
-        base.metadata.drop_all(store.db_engine)
+        sqlalchemy_db.clear_db(_SQLITE_DB_URI, base.metadata)
 
 
 if __name__ == '__main__':

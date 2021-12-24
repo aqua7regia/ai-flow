@@ -33,5 +33,5 @@ Welcome to AIFlow's Documentation!
    content/workflow_development/index
    content/deployment/index
    content/customize/index
+   content/cli/index
    content/api/index
-

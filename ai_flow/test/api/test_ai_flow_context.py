@@ -15,13 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-import unittest
 import os
+import unittest
+
+import ai_flow as af
+from ai_flow.api import ai_flow_context
+from ai_flow.api.ai_flow_context import init_ai_flow_context, init_notebook_context
+from ai_flow.context.project_context import current_project_config, current_project_context
+from ai_flow.context.workflow_config_loader import current_workflow_config
+from ai_flow.endpoint.server.server import AIFlowServer
+from ai_flow.project.project_config import ProjectConfig
 from ai_flow.store.db.base_model import base
 from ai_flow.test.store.test_sqlalchemy_store import _get_store
-from ai_flow.endpoint.server.server import AIFlowServer
-import ai_flow as af
 from ai_flow.test.util.notification_service_utils import start_notification_server, stop_notification_server, _NS_URI
+from ai_flow.test.util.server_util import wait_for_server_started
+from ai_flow.util import sqlalchemy_db
+from ai_flow.workflow.job_config import JobConfig
+from ai_flow.workflow.workflow_config import WorkflowConfig
 
 _SQLITE_DB_FILE = 'aiflow.db'
 _SQLITE_DB_URI = '%s%s' % ('sqlite:///', _SQLITE_DB_FILE)
@@ -37,6 +47,7 @@ class TestAIFlowContext(unittest.TestCase):
             os.remove(_SQLITE_DB_FILE)
         cls.server = AIFlowServer(store_uri=_SQLITE_DB_URI, port=_PORT, start_scheduler_service=False)
         cls.server.run()
+        wait_for_server_started('localhost:{}'.format(_PORT))
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -48,8 +59,35 @@ class TestAIFlowContext(unittest.TestCase):
         _get_store(_SQLITE_DB_URI)
 
     def tearDown(self) -> None:
-        store = _get_store(_SQLITE_DB_URI)
-        base.metadata.drop_all(store.db_engine)
+        sqlalchemy_db.clear_db(_SQLITE_DB_URI, base.metadata)
+        ai_flow_context.__init_context_flag__ = False
+        ai_flow_context.__init_notebook_context_flag__ = False
+        ai_flow_context.__init_client_flag__ = False
+
+    def test_init_notebook_context(self):
+        project_config: ProjectConfig = ProjectConfig()
+        project_config.set_project_name('test_project')
+        project_config.set_server_uri('localhost:50051')
+        project_config.set_notification_server_uri('localhost:50052')
+        project_config['blob'] = {
+            'blob_manager_class': 'ai_flow.test.api.mock_plugins.MockBlobManger'}
+        project_config['a'] = 'a'
+
+        workflow_config: WorkflowConfig = WorkflowConfig('test_notebook_context')
+        workflow_config.add_job_config('task_1', JobConfig(job_name='task_1', job_type='mock'))
+        workflow_config.add_job_config('task_2', JobConfig(job_name='task_2', job_type='mock'))
+        init_notebook_context(project_config, workflow_config)
+        self.assertEqual('test_project', current_project_config().get_project_name())
+        self.assertEqual('a', current_project_config().get('a'))
+        self.assertEqual('test_project', current_project_context().project_name)
+        self.assertEqual('test_notebook_context', current_workflow_config().workflow_name)
+        self.assertEqual(2, len(current_workflow_config().job_configs))
+
+        init_notebook_context(project_config, workflow_config)
+        self.assertEqual('test_project', current_project_config().get_project_name())
+
+        with self.assertRaises(Exception):
+            init_ai_flow_context()
 
     def test_init_ai_client(self):
         af.init_ai_flow_client(server_uri='localhost:50051', project_name='test', notification_server_uri=_NS_URI)

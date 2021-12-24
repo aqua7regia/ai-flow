@@ -52,42 +52,45 @@ limitations under the License. -->
         </span>
       </s-table>
     </a-card>
+    <a-card :bordered="false">
+      <span>Version: <a :href="'https://pypi.org/project/ai-flow/'+version" target="_blank">{{ version }}</a></span>
+    </a-card>
   </page-header-wrapper>
 </template>
 
 <script>
 import moment from 'moment'
 import { STable, Ellipsis } from '@/components'
-import { getModelVersions, getRoleList } from '@/api/manage'
+import { getModelVersions, getVersion } from '@/api/manage'
 
 const columns = [
   {
     title: 'Model Name',
-    dataIndex: '_model_name',
+    dataIndex: 'model_name',
     sorter: true
   },
   {
     title: 'Model Version',
-    dataIndex: '_model_version',
+    dataIndex: 'model_version',
     sorter: true
   },
   {
     title: 'Model Path',
-    dataIndex: '_model_path',
+    dataIndex: 'model_path',
     scopedSlots: { customRender: '_model_path' }
   },
   {
     title: 'Version Desc',
-    dataIndex: '_version_desc',
+    dataIndex: 'version_desc',
     scopedSlots: { customRender: '_version_desc' }
   },
   {
     title: 'Version Status',
-    dataIndex: '_version_status'
+    dataIndex: 'version_status'
   },
   {
     title: 'Current Stage',
-    dataIndex: '_current_stage'
+    dataIndex: 'current_stage'
   }
 ]
 
@@ -111,17 +114,24 @@ export default {
             console.log(res)
             return res
           })
-      }
+      },
+      version: ''
     }
   },
-  created () {
-    getRoleList({ t: new Date() })
+  mounted () {
+    this.getAIFlowVersion()
   },
   methods: {
     resetSearchForm () {
       this.queryParam = {
         date: moment(new Date())
       }
+    },
+    getAIFlowVersion () {
+      getVersion()
+        .then(res => {
+          this.version = res
+        })
     }
   }
 }

@@ -18,19 +18,36 @@
 ## under the License.
 ##
 set -e
+
 BIN=$(dirname "${BASH_SOURCE-$0}")
 BIN=$(cd "$BIN"; pwd)
 
+export AIFLOW_HOME=${AIFLOW_HOME:-~/aiflow}
+export NOTIFICATION_HOME=${NOTIFICATION_HOME:-~/notification_service}
+
 # start notification service
-"${BIN}"/start-notification.sh
-echo "start notification server."
+if [ -e "${NOTIFICATION_HOME}"/notification_server.pid ]; then
+  echo "Notification server is running, stop it first."
+  notification server stop
+fi
+notification config init
+notification db init
+notification server start -d
 sleep 3
+echo "Waiting for Notification Server started..."
 
 # start airflow scheduler and web server
 "${BIN}"/start-airflow.sh
-echo "airflow dag dir: ${AIRFLOW_DAG_DIR}"
 
 # start AIFlow
-"${BIN}"/start-aiflow.sh
+if [ -e "${AIFLOW_HOME}"/aiflow_server.pid ] || [ -e "${AIFLOW_HOME}"/aiflow_web_server.pid ]; then
+  echo "AIFlow is running, stopping first"
+  aiflow server stop
+  aiflow webserver stop
+fi
+aiflow config init
+aiflow db init
+aiflow server start -d
+aiflow webserver start -d
 
 echo "All services have been started!"

@@ -29,6 +29,7 @@ from ai_flow.test.store.test_sqlalchemy_store import _get_store
 from ai_flow.test.test_util import get_mysql_server_url
 from notification_service.server import NotificationServerRunner
 
+from ai_flow.util import sqlalchemy_db
 
 _PORT = '50051'
 _NS_PORT = '50052'
@@ -61,15 +62,12 @@ class TestAIFlowClientMySQL(test_client.TestAIFlowClientSqlite):
 
         cls.server = AIFlowServer(store_uri=cls.store_uri, port=_PORT)
         cls.server.run()
-        test_client.client = AIFlowClient(server_uri='localhost:' + _PORT, notification_server_uri=_NS_URI)
-        test_client.client1 = AIFlowClient(server_uri='localhost:' + _PORT, notification_server_uri=_NS_URI)
-        test_client.client2 = AIFlowClient(server_uri='localhost:' + _PORT, notification_server_uri=_NS_URI)
+        test_client.client = AIFlowClient(server_uri='localhost:' + _PORT)
+        test_client.client1 = AIFlowClient(server_uri='localhost:' + _PORT)
+        test_client.client2 = AIFlowClient(server_uri='localhost:' + _PORT)
 
     @classmethod
     def tearDownClass(cls) -> None:
-        test_client.client.stop_listen_event()
-        test_client.client1.stop_listen_event()
-        test_client.client2.stop_listen_event()
         cls.server.stop()
         cls.ns_server.stop()
 
@@ -77,8 +75,7 @@ class TestAIFlowClientMySQL(test_client.TestAIFlowClientSqlite):
         _get_store(self.store_uri)
 
     def tearDown(self) -> None:
-        store = _get_store(self.store_uri)
-        base.metadata.drop_all(store.db_engine)
+        sqlalchemy_db.clear_db(self.store_uri, base.metadata)
 
 
 if __name__ == '__main__':

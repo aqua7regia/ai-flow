@@ -29,3 +29,7 @@ def datetime_to_int64(d: datetime.datetime):
         return 0
     else:
         return int(d.timestamp()*1000)
+
+
+def parse_date(timestamp):
+    return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(timestamp) / 1000))

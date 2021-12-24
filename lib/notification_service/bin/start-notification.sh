@@ -19,20 +19,18 @@
 ##
 set -e
 
-BIN=$(dirname "${BASH_SOURCE-$0}")
-BIN=$(cd "$BIN"; pwd)
-. "${BIN}"/init-notification-env.sh
+echo "[WARNING] This script will be deprecated, please use 'notification' command-line interface."
 
-if [ -e "${NOTIFICATION_PID_FILE}" ]; then
+# start notification service
+
+export NOTIFICATION_HOME=${NOTIFICATION_HOME:-~/notification_service}
+if [ -e "${NOTIFICATION_HOME}"/notification_server.pid ]; then
   echo "Notification server is running, stop it first."
-  "${BIN}"/stop-notification.sh
+  notification server stop
 fi
 
-echo "Starting notification server"
-LOG_FILE_NAME=notification_server-$(date "+%Y%m%d-%H%M%S").log
-"$BIN"/start_notification_server.py > "${NOTIFICATION_LOG_DIR}"/"${LOG_FILE_NAME}" 2>&1 &
-echo $! > "${NOTIFICATION_PID_FILE}"
+notification config init
 
-echo "notification server started"
-echo "Notification server log: ${NOTIFICATION_LOG_DIR}/${LOG_FILE_NAME}"
-echo "Notification server pid: $(cat "${NOTIFICATION_PID_FILE}")"
+notification db init
+
+notification server start -d

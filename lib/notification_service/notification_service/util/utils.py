@@ -16,11 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-import time
+import logging
+import os
+import signal
 import socket
+import time
 from importlib import import_module
 from itertools import tee, filterfalse
 
+import dateutil.parser
 from typing import Callable, Iterable
 
 from notification_service.base_notification import BaseEvent, Member, SenderEventCount
@@ -28,6 +32,8 @@ from notification_service.proto import notification_service_pb2
 
 if not hasattr(time, 'time_ns'):
     time.time_ns = lambda: int(time.time() * 1e9)
+
+logger = logging.getLogger(__name__)
 
 
 def event_to_proto(event: BaseEvent):
@@ -158,3 +164,48 @@ def partition(pred: Callable, iterable: Iterable):
     """Use a predicate to partition entries into false entries and true entries"""
     iter_1, iter_2 = tee(iterable)
     return filterfalse(pred, iter_1), filter(pred, iter_2)
+
+
+def parse_date(dt: str):
+    """
+    Parse a datetime in ISO 8601 to milliseconds since epoch.
+
+    :param dt: datetime string
+    """
+    parsed_time = dateutil.parser.parse(dt)
+    return int(parsed_time.timestamp() * 1000)
+
+
+def check_pid_exist(_pid):
+    try:
+        os.kill(_pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
+
+
+def stop_process(pid, process_name, timeout_sec: int = 60):
+    """
+    Try hard to kill the process with the given pid. It sends
+    :param pid: The process pid to stop
+    :param process_name: The process name to log
+    :param timeout_sec: timeout before sending SIGKILL to kill the process
+    """
+
+    try:
+        start_time = time.monotonic()
+        while check_pid_exist(pid):
+            if time.monotonic() - start_time > timeout_sec:
+                raise RuntimeError(
+                    "{} pid: {} does not exit after {} seconds.".format(process_name, pid, timeout_sec))
+            os.kill(pid, signal.SIGTERM)
+            time.sleep(1)
+    except Exception:
+        logger.warning("Failed to stop {} pid: {} with SIGTERM. Try to send SIGKILL".format(process_name, pid))
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except Exception as e:
+            raise RuntimeError("Failed to kill {} pid: {} with SIGKILL.".format(process_name, pid)) from e
+
+    logger.info("{} pid: {} stopped".format(process_name, pid))

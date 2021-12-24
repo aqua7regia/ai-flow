@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import yaml
 import os
+
+import yaml
 
 
 class NotificationServerConfig(object):
@@ -26,6 +27,7 @@ class NotificationServerConfig(object):
         self._enable_ha = False
         self._ha_ttl_ms = None
         self._advertised_uri = None
+        self._wait_for_server_started_timeout = 5.0
         self._parse_config()
 
     def _parse_config(self):
@@ -41,6 +43,8 @@ class NotificationServerConfig(object):
                 self._ha_ttl_ms = yaml_config['ha_ttl_ms']
             if 'advertised_uri' in yaml_config:
                 self._advertised_uri = yaml_config['advertised_uri']
+            if 'wait_for_server_started_timeout' in yaml_config:
+                self._wait_for_server_started_timeout = yaml_config['wait_for_server_started_timeout']
 
     @property
     def port(self):
@@ -82,13 +86,16 @@ class NotificationServerConfig(object):
     def advertised_uri(self, advertised_uri):
         self._advertised_uri = advertised_uri
 
+    @property
+    def wait_for_server_started_timeout(self):
+        return self._wait_for_server_started_timeout
 
-def get_configuration():
-    if 'NOTIFICATION_HOME' in os.environ:
-        home = os.getenv('NOTIFICATION_HOME')
-    else:
-        home = os.getenv('HOME') + '/notification_service'
-    config_file = home + '/notification_server.yaml'
-    if not os.path.exists(config_file):
-        raise FileNotFoundError('Do not find config file {}'.format(config_file))
-    return NotificationServerConfig(config_file=config_file)
+    @wait_for_server_started_timeout.setter
+    def wait_for_server_started_timeout(self, wait_for_server_started_timeout):
+        self._wait_for_server_started_timeout = wait_for_server_started_timeout
+
+    def __repr__(self):
+        return f"""
+port: {self.port}
+db_uri: {self.db_uri}
+        """
